@@ -30,19 +30,24 @@ func keys_from_map(in map[string]string) []string {
 }
 
 type entry struct {
-	origin    string
-	published time.Time
-	title     string
+	Origin    string
+	Published time.Time
+	Title     string
+	Item      *gofeed.Item
 }
 
 func (e entry) String() string {
-	return fmt.Sprintf("%s [%s] %s", e.published.Format("2006-01-02"), e.origin, e.title)
+	return fmt.Sprintf("%s [%s] %s", e.Published.Format("2006-01-02"), e.Origin, e.Title)
 }
 
 func main() {
+	config_file := "planet.ini"
+	if len(os.Args)==3 && os.Args[1]=="-c" {
+		config_file = os.Args[2]
+	}
 	vars := make(map[string]interface{})
 	entries := make([]entry, 0, 200)
-	config, err := ini.Load("planet.ini")
+	config, err := ini.Load(config_file)
 	if err != nil {
 		log.Println(err)
 		return
@@ -61,34 +66,28 @@ func main() {
 			fp := gofeed.NewParser()
 			feed, _ := fp.ParseURL(content["rss"])
 			log.Printf("[%s] %s (%d items)", name, feed.Title, len(feed.Items))
+			log.Printf("### %v", feed)
 			i := 0
 			for _, item := range feed.Items {
 				if i >= global.max_posts_per_author {
 					break
 				}
-				entries = append(entries, entry{origin:name, published:*item.PublishedParsed, title:item.Title})
+				entries = append(entries, entry{Origin:name, Published:*item.PublishedParsed, Title:item.Title, Item:item})
 //				log.Printf("..(%s) %s", item.PublishedParsed.Format("2006-01-02"), item.Title)
 				i++
 			}
 		}
 //		log.Println("[" + name + "] " + fmt.Sprint(keys_from_map(content)))
 	}
-	sort.Slice(entries, func(i, j int) bool { return entries[j].published.Before(entries[i].published) })
+	sort.Slice(entries, func(i, j int) bool { return entries[j].Published.Before(entries[i].Published) })
 	if len(entries) > global.max_posts_per_page {
 		entries = entries[:global.max_posts_per_page]
 	}
 	for _, entry := range entries {
 		log.Println(entry)
 	}
-	vars["posts"] = make([]map[string]string, 0)
-	for x, y := range config {
-		if x != "_global" {
-			vars["posts"] = append(vars["posts"].([]map[string]string), map[string]string(y))
-		}
-	}
-//	vars = config
-//	vars["items"] = config
-//	delete(vars["items"], "_global")
+	vars["config"] = config
+	vars["posts"] = entries
 	for x, y := range config["_global"] {
 		vars[x] = y
 	}
@@ -103,11 +102,11 @@ func main() {
 		return
 	}
 	defer f.Close()
+	log.Printf("%+v",vars)
 	err = t.Execute(f, vars)
 	if err != nil {
 		log.Println("execute: ", err)
 		return
 	}
 
-	log.Println(vars)
 }
