@@ -2,11 +2,11 @@ package main
 
 import (
 	"os"
-	"fmt"
 	"log"
 	"time"
 	"sort"
 	"strconv"
+	"math/rand"
 	"html/template"
 	"github.com/mmcdole/gofeed"
 	"github.com/mmcdole/gofeed/extensions"
@@ -30,17 +30,6 @@ func keys_from_map(in map[string]string) []string {
 	return keys
 }
 
-type entry struct {
-	Origin    string
-	Published time.Time
-	Title     string
-	Item      *gofeed.Item
-}
-
-func (e entry) String() string {
-	return fmt.Sprintf("%s [%s] %s", e.Published.Format("2006-01-02"), e.Origin, e.Title)
-}
-
 func add_extensions(post *map[string]interface{}, main string, extensions map[string][]ext.Extension) {
 	for name, exts := range extensions {
 		for _, ext := range exts {
@@ -56,13 +45,18 @@ func add_extensions(post *map[string]interface{}, main string, extensions map[st
 	}
 }
 
+var debug = false
+
 func main() {
-	config_file := "planet.ini"
+	config_file := "/etc/planet.ini"
+	if len(os.Args)>1 && os.Args[1]=="-d" {
+		debug = true
+		os.Args = os.Args[1:]
+	}
 	if len(os.Args)==3 && os.Args[1]=="-c" {
 		config_file = os.Args[2]
 	}
 	vars := make(map[string]interface{})
-	entries := make([]entry, 0, 200)
 	posts := make([]map[string]interface{}, 0, 200)
 	config, err := ini.Load(config_file)
 	if err != nil {
@@ -73,33 +67,44 @@ func main() {
 	global.max_posts_per_page, _ = strconv.Atoi(config["_global"]["max_posts_per_page"])
 	global.template = config["_global"]["template"]
 	global.output = config["_global"]["output"]
-	x := 0
+//	x := 0
 	for name, content := range config {
-		x++
-		if x > 5 {
-			break
-		}
+//		x++
+//		if x > 5 {
+//			break
+//		}
 		if content["rss"] != "" {
+			log.Printf("Reading feed %s...", content["rss"])
 			fp := gofeed.NewParser()
 			feed, _ := fp.ParseURL(content["rss"])
 //			log.Printf("[%s] %s (%d items)", name, feed.Title, len(feed.Items))
-			log.Printf("### feed = %v", feed)
+			if debug {
+				log.Printf("### feed = %v", feed)
+			}
 			i := 0
 			for _, item := range feed.Items {
 				if i >= global.max_posts_per_author {
 					break
 				}
-				entries = append(entries, entry{Origin:name, Published:*item.PublishedParsed, Title:item.Title, Item:item})
 				post := make(map[string]interface{})
 				post["origin"] = name
+				post["id"] = item.GUID
 				post["published"] = *item.PublishedParsed
 				post["title"] = item.Title
+				post["description"] = item.Description
+				post["content"] = item.Content
 				post["link"] = item.Link
 				if item.Author != nil {
 					post["author_name"] = item.Author.Name
+					post["author_email"] = item.Author.Email
 				}
+				post["image"] = item.Image
 				post["feed_title"] = feed.Title
 				post["feed_link"] = feed.Link
+				post["blog_title"] = content["title"]
+				post["blog_description"] = content["description"]
+				post["blog_avatar"] = content["avatar"]
+				post["blog_url"] = content["url"]
 				// TODO: add some more fields...
 				// TODO: add extensions
 				for extmain, rest := range item.Extensions {
@@ -112,24 +117,40 @@ func main() {
 		}
 //		log.Println("[" + name + "] " + fmt.Sprint(keys_from_map(content)))
 	}
-	sort.Slice(entries, func(i, j int) bool { return entries[j].Published.Before(entries[i].Published) })
-	if len(entries) > global.max_posts_per_page {
-		entries = entries[:global.max_posts_per_page]
-	}
 	sort.Slice(posts, func(i, j int) bool { return posts[j]["published"].(time.Time).Before(posts[i]["published"].(time.Time)) })
 	if len(posts) > global.max_posts_per_page {
 		posts = posts[:global.max_posts_per_page]
 	}
-//	for _, entry := range entries {
-//		log.Println(entry)
-//	}
+	for i, _ := range posts {
+		posts[i]["index"] = i
+	}
 	vars["config"] = config
-	vars["entries"] = entries
 	vars["posts"] = posts
 	for x, y := range config["_global"] {
 		vars[x] = y
 	}
-	t, err := template.ParseFiles(global.template)
+	funcMap := template.FuncMap{
+                "noescape": func(s string) template.HTML {
+                        return template.HTML(s)
+                },
+                "add": func(a, b int) int {
+                        return a + b
+                },
+                "sub": func(a, b int) int {
+                        return a - b
+                },
+                "mul": func(a, b int) int {
+                        return a * b
+                },
+                "div": func(a, b int) int {
+                        return a / b
+                },
+                "mod": func(a, b int) int {
+                        return a % b
+                },
+                "rand": rand.Float64,
+        }
+	t, err := template.New(global.template).Funcs(funcMap).ParseFiles(global.template)
 	if err != nil {
 		log.Print(err)
 		return
@@ -140,7 +161,9 @@ func main() {
 		return
 	}
 	defer f.Close()
-	log.Printf("### vars = %+v", vars)
+	if debug {
+		log.Printf("### vars = %+v", vars)
+	}
 	err = t.Execute(f, vars)
 	if err != nil {
 		log.Println("execute: ", err)
