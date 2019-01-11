@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 	"sort"
+	"regexp"
 	"strconv"
 	"math/rand"
 	"html/template"
@@ -46,6 +47,16 @@ func add_extensions(post *map[string]interface{}, main string, extensions map[st
 }
 
 var debug = false
+
+func get_first_image(html string) string {
+	re := regexp.MustCompile(`<img.*?src *= *["']?(.*?)["' >]`)
+	match := re.FindStringSubmatch(html)
+	if len(match) > 1 {
+		return match[1]
+	} else {
+		return ""
+	}
+}
 
 func main() {
 	config_file := "/etc/planet.ini"
@@ -98,7 +109,11 @@ func main() {
 					post["author_name"] = item.Author.Name
 					post["author_email"] = item.Author.Email
 				}
-				post["image"] = item.Image
+				if item.Image != nil {
+					post["image"] = item.Image.URL
+				} else {
+					post["image"] = get_first_image(item.Content)
+				}
 				post["feed_title"] = feed.Title
 				post["feed_link"] = feed.Link
 				post["blog_title"] = content["title"]
