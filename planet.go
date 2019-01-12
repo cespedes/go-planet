@@ -116,10 +116,25 @@ func main() {
 				}
 				post["feed_title"] = feed.Title
 				post["feed_link"] = feed.Link
-				post["blog_title"] = content["title"]
-				post["blog_description"] = content["description"]
+				post["feed_description"] = feed.Description
+				if content["title"] != "" {
+					post["blog_title"] = content["title"]
+				} else {
+					post["blog_title"] = feed.Title
+				}
+				if content["description"] != "" {
+					post["blog_description"] = content["description"]
+				} else if feed.Description != "" {
+					post["blog_description"] = feed.Description
+				} else {
+					post["blog_description"] = feed.Title
+				}
 				post["blog_avatar"] = content["avatar"]
-				post["blog_url"] = content["url"]
+				if content["url"] != "" {
+					post["blog_url"] = content["url"]
+				} else {
+					post["blog_url"] = feed.Link
+				}
 				// TODO: add some more fields...
 				// TODO: add extensions
 				for extmain, rest := range item.Extensions {
