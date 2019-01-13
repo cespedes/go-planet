@@ -163,6 +163,10 @@ func main() {
                 "noescape": func(s string) template.HTML {
                         return template.HTML(s)
                 },
+                "html2text": func(s string) string {
+			re := regexp.MustCompile("<[^>]*>")
+			return re.ReplaceAllString(s, " ")
+                },
                 "add": func(a, b int) int {
                         return a + b
                 },
