@@ -3,10 +3,12 @@ package main
 import (
 	"os"
 	"log"
+	"fmt"
 	"time"
 	"sort"
 	"regexp"
 	"strconv"
+	"strings"
 	"math/rand"
 	"html/template"
 	"github.com/mmcdole/gofeed"
@@ -55,6 +57,36 @@ func get_first_image(html string) string {
 		return match[1]
 	} else {
 		return ""
+	}
+}
+
+var i18n_dows map[string][]string
+var i18n_months map[string][]string
+func init() {
+	i18n_dows = make(map[string][]string)
+	i18n_months = make(map[string][]string)
+	i18n_dows["spanish"] = []string{
+		"domingo",
+		"lunes",
+		"martes",
+		"miércoles",
+		"jueves",
+		"viernes",
+		"sábado",
+	}
+	i18n_months["spanish"] = []string{
+		"enero",
+		"febrero",
+		"marzo",
+		"abril",
+		"mayo",
+		"junio",
+		"julio",
+		"agosto",
+		"septiembre",
+		"octubre",
+		"noviembre",
+		"diciembre",
 	}
 }
 
@@ -172,6 +204,7 @@ func main() {
 	vars["config"] = config
 	vars["posts"] = posts
 	vars["blogs"] = blogs
+	vars["last_update"] = time.Now()
 	for x, y := range config["_global"] {
 		vars[x] = y
 	}
@@ -205,6 +238,19 @@ func main() {
 				size = l
 			}
 			return s[:size]
+                },
+                "longdate": func(lang string, t time.Time) string {
+			dow := strings.Title(i18n_dows[lang][t.Weekday()])
+			day := t.Day()
+			month := i18n_months[lang][t.Month()-1]
+			year := t.Year()
+			return fmt.Sprintf("%s, %d de %s de %d", dow, day, month, year)
+                },
+                "shortdate": func(lang string, t time.Time) string {
+			return t.Format("02-01-2006")
+                },
+                "hhmm": func(t time.Time) string {
+			return t.Format("15:04")
                 },
         }
 	t, err := template.New(global.template).Funcs(funcMap).ParseFiles(global.template)
