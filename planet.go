@@ -69,6 +69,7 @@ func main() {
 	}
 	vars := make(map[string]interface{})
 	posts := make([]map[string]interface{}, 0, 200)
+	blogs := make([]map[string]interface{}, 0, 200)
 	config, err := ini.Load(config_file)
 	if err != nil {
 		log.Println(err)
@@ -85,9 +86,22 @@ func main() {
 //			break
 //		}
 		if content["rss"] != "" {
+			blog := make(map[string]interface{})
 			log.Printf("Reading feed %s...", content["rss"])
 			fp := gofeed.NewParser()
-			feed, _ := fp.ParseURL(content["rss"])
+			feed, err := fp.ParseURL(content["rss"])
+			if err != nil {
+				log.Printf("Error reading feed %s: %v", name, err)
+			}
+			blog["name"] = feed.Title
+			blog["url"] = feed.Link
+			if len(feed.Items) > 1 {
+				blog["time"] = *(feed.Items[0].PublishedParsed)
+			} else {
+				var a time.Time
+				blog["time"] = a
+			}
+			blogs = append(blogs, blog)
 //			log.Printf("[%s] %s (%d items)", name, feed.Title, len(feed.Items))
 			if debug {
 				log.Printf("### feed = %v", feed)
@@ -148,6 +162,7 @@ func main() {
 //		log.Println("[" + name + "] " + fmt.Sprint(keys_from_map(content)))
 	}
 	sort.Slice(posts, func(i, j int) bool { return posts[j]["published"].(time.Time).Before(posts[i]["published"].(time.Time)) })
+	sort.Slice(blogs, func(i, j int) bool { return blogs[j]["time"].(time.Time).Before(blogs[i]["time"].(time.Time)) })
 	if len(posts) > global.max_posts_per_page {
 		posts = posts[:global.max_posts_per_page]
 	}
@@ -156,16 +171,13 @@ func main() {
 	}
 	vars["config"] = config
 	vars["posts"] = posts
+	vars["blogs"] = blogs
 	for x, y := range config["_global"] {
 		vars[x] = y
 	}
 	funcMap := template.FuncMap{
                 "noescape": func(s string) template.HTML {
                         return template.HTML(s)
-                },
-                "html2text": func(s string) string {
-			re := regexp.MustCompile("<[^>]*>")
-			return re.ReplaceAllString(s, " ")
                 },
                 "add": func(a, b int) int {
                         return a + b
@@ -183,6 +195,17 @@ func main() {
                         return a % b
                 },
                 "rand": rand.Float64,
+                "html2text": func(s string) string {
+			re := regexp.MustCompile("<[^>]*>")
+			return re.ReplaceAllString(s, " ")
+                },
+                "truncate": func(size int, s string) string {
+			l := len(s)
+			if size > l {
+				size = l
+			}
+			return s[:size]
+                },
         }
 	t, err := template.New(global.template).Funcs(funcMap).ParseFiles(global.template)
 	if err != nil {
