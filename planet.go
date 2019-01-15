@@ -175,7 +175,11 @@ func main() {
 				} else {
 					post["blog_description"] = feed.Title
 				}
-				post["blog_avatar"] = content["avatar"]
+				if content["avatar"] != "" {
+					post["blog_avatar"] = content["avatar"]
+				} else {
+					post["blog_avatar"] = config["_global"]["default_avatar"]
+				}
 				if content["url"] != "" {
 					post["blog_url"] = content["url"]
 				} else {
