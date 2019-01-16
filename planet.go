@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"time"
 	"sort"
+	"bytes"
 	"regexp"
 	"strconv"
 	"strings"
 	"math/rand"
 	"html/template"
+	"golang.org/x/net/html"
 	"github.com/mmcdole/gofeed"
 	"github.com/mmcdole/gofeed/extensions"
 	"github.com/glacjay/goini"
@@ -50,14 +52,25 @@ func add_extensions(post *map[string]interface{}, main string, extensions map[st
 
 var debug = false
 
-func get_first_image(html string) string {
+func get_first_image(s string) string {
 	re := regexp.MustCompile(`<img.*?src *= *["']?(.*?)["' >]`)
-	match := re.FindStringSubmatch(html)
+	match := re.FindStringSubmatch(s)
 	if len(match) > 1 {
 		return match[1]
 	} else {
 		return ""
 	}
+}
+
+func clean_html(s string) string {
+	root, err := html.Parse(strings.NewReader(s))
+	if err != nil {
+		log.Printf("Error parsing HTML: %v", err)
+		return ""
+	}
+	var b bytes.Buffer
+	html.Render(&b, root)
+	return b.String()
 }
 
 var i18n_dows map[string][]string
@@ -149,7 +162,7 @@ func main() {
 				post["published"] = *item.PublishedParsed
 				post["title"] = item.Title
 				post["description"] = item.Description
-				post["content"] = item.Content
+				post["content"] = clean_html(item.Content)
 				post["link"] = item.Link
 				if item.Author != nil {
 					post["author_name"] = item.Author.Name
@@ -233,7 +246,9 @@ func main() {
                 },
                 "rand": rand.Float64,
                 "html2text": func(s string) string {
-			re := regexp.MustCompile("<[^>]*>")
+			re := regexp.MustCompile("<!--.*?-->")
+			s = re.ReplaceAllString(s, " ")
+			re = regexp.MustCompile("<[^>]*>")
 			return re.ReplaceAllString(s, " ")
                 },
                 "truncate": func(size int, s string) string {
