@@ -62,6 +62,33 @@ func get_first_image(s string) string {
 	}
 }
 
+func get_meta(node *html.Node, name string) (r string) {
+	if node==nil {
+		return ""
+	}
+	if node.Type==html.ElementNode && node.Data=="meta" {
+		var this_name, this_content string
+			for _, e := range node.Attr {
+				if e.Key=="name" {
+					this_name = e.Val
+				}
+				if e.Key=="content" {
+					this_content = e.Val
+				}
+			}
+		if name==this_name {
+			return this_content
+		}
+	}
+	r = get_meta(node.FirstChild, name)
+		if r != "" {
+			return r
+		}
+	r = get_meta(node.NextSibling, name)
+		return r
+}
+
+
 func clean_html(s string) string {
 	root, err := html.Parse(strings.NewReader(s))
 	if err != nil {
@@ -70,7 +97,13 @@ func clean_html(s string) string {
 	}
 	var b bytes.Buffer
 	html.Render(&b, root)
-	return b.String()
+	s = b.String()
+
+	re := regexp.MustCompile("^.*?<body[^>]*>")
+	s = re.ReplaceAllString(s, "")
+	re = regexp.MustCompile("</body>.*$")
+	s = re.ReplaceAllString(s, "")
+	return s
 }
 
 var i18n_dows map[string][]string
