@@ -25,6 +25,10 @@ var global struct {
 	output               string
 }
 
+func post_to_hash(post map[string]interface{}) (hash string) {
+	hash = post["published"].(time.Time).Format("20060102")
+}
+
 func keys_from_map(in map[string]string) []string {
 	keys := make([]string, len(in))
 	i := 0
@@ -108,6 +112,7 @@ func clean_html(s string) string {
 
 var i18n_dows map[string][]string
 var i18n_months map[string][]string
+
 func init() {
 	i18n_dows = make(map[string][]string)
 	i18n_months = make(map[string][]string)
@@ -324,5 +329,4 @@ func main() {
 		log.Println("execute: ", err)
 		return
 	}
-
 }
