@@ -1,21 +1,21 @@
 package main
 
 import (
-	"os"
-	"log"
-	"fmt"
-	"time"
-	"sort"
 	"bytes"
-	"regexp"
-	"strconv"
-	"strings"
-	"math/rand"
-	"html/template"
-	"golang.org/x/net/html"
+	"fmt"
+	"github.com/glacjay/goini"
 	"github.com/mmcdole/gofeed"
 	"github.com/mmcdole/gofeed/extensions"
-	"github.com/glacjay/goini"
+	"golang.org/x/net/html"
+	"html/template"
+	"log"
+	"math/rand"
+	"os"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
 )
 
 var global struct {
@@ -25,9 +25,11 @@ var global struct {
 	output               string
 }
 
+/*
 func post_to_hash(post map[string]interface{}) (hash string) {
 	hash = post["published"].(time.Time).Format("20060102")
 }
+*/
 
 func keys_from_map(in map[string]string) []string {
 	keys := make([]string, len(in))
@@ -43,13 +45,13 @@ func add_extensions(post *map[string]interface{}, main string, extensions map[st
 	for name, exts := range extensions {
 		for _, ext := range exts {
 			if len(ext.Value) > 0 {
-//				log.Printf("### ADDING %s:%s = %+v", main, name, ext.Value)
-				(*post)[main + "_" + name] = ext.Value
+				// log.Printf("### ADDING %s:%s = %+v", main, name, ext.Value)
+				(*post)[main+"_"+name] = ext.Value
 			}
 			for a, b := range ext.Attrs {
-				(*post)[main + "_" + name + "__" + a] = b
+				(*post)[main+"_"+name+"__"+a] = b
 			}
-			add_extensions(post, main + "__" + name, ext.Children)
+			add_extensions(post, main+"__"+name, ext.Children)
 		}
 	}
 }
@@ -67,31 +69,30 @@ func get_first_image(s string) string {
 }
 
 func get_meta(node *html.Node, name string) (r string) {
-	if node==nil {
+	if node == nil {
 		return ""
 	}
-	if node.Type==html.ElementNode && node.Data=="meta" {
+	if node.Type == html.ElementNode && node.Data == "meta" {
 		var this_name, this_content string
-			for _, e := range node.Attr {
-				if e.Key=="name" {
-					this_name = e.Val
-				}
-				if e.Key=="content" {
-					this_content = e.Val
-				}
+		for _, e := range node.Attr {
+			if e.Key == "name" {
+				this_name = e.Val
 			}
-		if name==this_name {
+			if e.Key == "content" {
+				this_content = e.Val
+			}
+		}
+		if name == this_name {
 			return this_content
 		}
 	}
 	r = get_meta(node.FirstChild, name)
-		if r != "" {
-			return r
-		}
-	r = get_meta(node.NextSibling, name)
+	if r != "" {
 		return r
+	}
+	r = get_meta(node.NextSibling, name)
+	return r
 }
-
 
 func clean_html(s string) string {
 	root, err := html.Parse(strings.NewReader(s))
@@ -143,11 +144,11 @@ func init() {
 
 func main() {
 	config_file := "/etc/planet.ini"
-	if len(os.Args)>1 && os.Args[1]=="-d" {
+	if len(os.Args) > 1 && os.Args[1] == "-d" {
 		debug = true
 		os.Args = os.Args[1:]
 	}
-	if len(os.Args)==3 && os.Args[1]=="-c" {
+	if len(os.Args) == 3 && os.Args[1] == "-c" {
 		config_file = os.Args[2]
 	}
 	vars := make(map[string]interface{})
@@ -162,12 +163,12 @@ func main() {
 	global.max_posts_per_page, _ = strconv.Atoi(config["_global"]["max_posts_per_page"])
 	global.template = config["_global"]["template"]
 	global.output = config["_global"]["output"]
-//	x := 0
+	// x := 0
 	for name, content := range config {
-//		x++
-//		if x > 5 {
-//			break
-//		}
+		// x++
+		// if x > 5 {
+		// 	break
+		// }
 		if content["rss"] != "" {
 			blog := make(map[string]interface{})
 			log.Printf("Reading feed %s...", content["rss"])
@@ -175,6 +176,7 @@ func main() {
 			feed, err := fp.ParseURL(content["rss"])
 			if err != nil {
 				log.Printf("Error reading feed %s: %v", name, err)
+				continue
 			}
 			blog["name"] = feed.Title
 			blog["url"] = feed.Link
@@ -185,7 +187,7 @@ func main() {
 				blog["time"] = a
 			}
 			blogs = append(blogs, blog)
-//			log.Printf("[%s] %s (%d items)", name, feed.Title, len(feed.Items))
+			// log.Printf("[%s] %s (%d items)", name, feed.Title, len(feed.Items))
 			if debug {
 				log.Printf("### feed = %v", feed)
 			}
@@ -242,13 +244,15 @@ func main() {
 					add_extensions(&post, extmain, rest)
 				}
 				posts = append(posts, post)
-//				log.Printf("..(%s) %s", item.PublishedParsed.Format("2006-01-02"), item.Title)
+				// log.Printf("..(%s) %s", item.PublishedParsed.Format("2006-01-02"), item.Title)
 				i++
 			}
 		}
-//		log.Println("[" + name + "] " + fmt.Sprint(keys_from_map(content)))
+		// log.Println("[" + name + "] " + fmt.Sprint(keys_from_map(content)))
 	}
-	sort.Slice(posts, func(i, j int) bool { return posts[j]["published"].(time.Time).Before(posts[i]["published"].(time.Time)) })
+	sort.Slice(posts, func(i, j int) bool {
+		return posts[j]["published"].(time.Time).Before(posts[i]["published"].(time.Time))
+	})
 	sort.Slice(blogs, func(i, j int) bool { return blogs[j]["time"].(time.Time).Before(blogs[i]["time"].(time.Time)) })
 	if len(posts) > global.max_posts_per_page {
 		posts = posts[:global.max_posts_per_page]
@@ -264,52 +268,52 @@ func main() {
 		vars[x] = y
 	}
 	funcMap := template.FuncMap{
-                "noescape": func(s string) template.HTML {
-                        return template.HTML(s)
-                },
-                "add": func(a, b int) int {
-                        return a + b
-                },
-                "sub": func(a, b int) int {
-                        return a - b
-                },
-                "mul": func(a, b int) int {
-                        return a * b
-                },
-                "div": func(a, b int) int {
-                        return a / b
-                },
-                "mod": func(a, b int) int {
-                        return a % b
-                },
-                "rand": rand.Float64,
-                "html2text": func(s string) string {
+		"noescape": func(s string) template.HTML {
+			return template.HTML(s)
+		},
+		"add": func(a, b int) int {
+			return a + b
+		},
+		"sub": func(a, b int) int {
+			return a - b
+		},
+		"mul": func(a, b int) int {
+			return a * b
+		},
+		"div": func(a, b int) int {
+			return a / b
+		},
+		"mod": func(a, b int) int {
+			return a % b
+		},
+		"rand": rand.Float64,
+		"html2text": func(s string) string {
 			re := regexp.MustCompile("<!--.*?-->")
 			s = re.ReplaceAllString(s, " ")
 			re = regexp.MustCompile("<[^>]*>")
 			return re.ReplaceAllString(s, " ")
-                },
-                "truncate": func(size int, s string) string {
+		},
+		"truncate": func(size int, s string) string {
 			l := len(s)
 			if size > l {
 				size = l
 			}
 			return s[:size]
-                },
-                "longdate": func(lang string, t time.Time) string {
+		},
+		"longdate": func(lang string, t time.Time) string {
 			dow := strings.Title(i18n_dows[lang][t.Weekday()])
 			day := t.Day()
 			month := i18n_months[lang][t.Month()-1]
 			year := t.Year()
 			return fmt.Sprintf("%s, %d de %s de %d", dow, day, month, year)
-                },
-                "shortdate": func(lang string, t time.Time) string {
+		},
+		"shortdate": func(lang string, t time.Time) string {
 			return t.Format("02-01-2006")
-                },
-                "hhmm": func(t time.Time) string {
+		},
+		"hhmm": func(t time.Time) string {
 			return t.Format("15:04")
-                },
-        }
+		},
+	}
 	t, err := template.New(global.template).Funcs(funcMap).ParseFiles(global.template)
 	if err != nil {
 		log.Print(err)
